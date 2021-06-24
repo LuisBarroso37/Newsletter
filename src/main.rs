@@ -12,7 +12,7 @@ async fn main() -> std::io::Result<()> {
 
     // Read configuration file - panic if we can't read it
     let configuration = get_configuration().expect("Failed to read configuration");
-    
+
     // Create Postgres database connection pool
     let connection_pool = PgPoolOptions::new()
         .connect_timeout(std::time::Duration::from_secs(2))
@@ -21,7 +21,10 @@ async fn main() -> std::io::Result<()> {
         .expect("Failed to connect to Postgres");
 
     // Create listener for port acquired from config file
-    let address = format!("{}:{}", configuration.application.host, configuration.application.port);
+    let address = format!(
+        "{}:{}",
+        configuration.application.host, configuration.application.port
+    );
     let listener = TcpListener::bind(address)?;
 
     // Run server

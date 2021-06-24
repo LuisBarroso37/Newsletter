@@ -34,7 +34,10 @@ pub async fn subscribe(
     name = "Saving a new subscriber details in the database",
     skip(form, connection_pool)
 )]
-pub async fn insert_subscriber(form: &FormData, connection_pool: &PgPool) -> Result<(), sqlx::Error> {
+pub async fn insert_subscriber(
+    form: &FormData,
+    connection_pool: &PgPool,
+) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
         INSERT INTO subscriptions (id, email, name, subscribed_at)

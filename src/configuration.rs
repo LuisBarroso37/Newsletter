@@ -1,6 +1,6 @@
-use std::convert::{TryFrom, TryInto};
 use serde_aux::field_attributes::deserialize_number_from_string;
 use sqlx::postgres::{PgConnectOptions, PgSslMode};
+use std::convert::{TryFrom, TryInto};
 
 #[derive(serde::Deserialize)]
 pub struct Settings {
@@ -24,7 +24,7 @@ pub struct DatabaseSettings {
     pub host: String,
     pub database_name: String,
     // Determine if we demand the connection to be encrypted or not
-    pub require_ssl: bool
+    pub require_ssl: bool,
 }
 
 impl DatabaseSettings {
@@ -68,7 +68,9 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
         .expect("Failed to parse APP_ENVIRONMENT");
 
     // Layer on the environment-specific values
-    settings.merge(config::File::from(configuration_directory.join(environment.as_str())).required(true))?;
+    settings.merge(
+        config::File::from(configuration_directory.join(environment.as_str())).required(true),
+    )?;
 
     // Add in settings from environment variables (with a prefix of APP and '__' as separator)
     // E.g. `APP_APPLICATION__PORT=5001 would set `Settings.application.port`
@@ -80,14 +82,14 @@ pub fn get_configuration() -> Result<Settings, config::ConfigError> {
 
 pub enum Environment {
     Local,
-    Production
+    Production,
 }
 
 impl Environment {
     pub fn as_str(&self) -> &'static str {
         match self {
             Environment::Local => "local",
-            Environment::Production => "production"
+            Environment::Production => "production",
         }
     }
 }
@@ -99,7 +101,10 @@ impl TryFrom<String> for Environment {
         match s.to_lowercase().as_str() {
             "local" => Ok(Self::Local),
             "production" => Ok(Self::Production),
-            other => Err(format!("{} is not a supported environment. Use either 'local' or 'production'", other))
+            other => Err(format!(
+                "{} is not a supported environment. Use either 'local' or 'production'",
+                other
+            )),
         }
     }
 }

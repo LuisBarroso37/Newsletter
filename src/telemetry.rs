@@ -2,9 +2,9 @@ use tracing::subscriber::set_global_default;
 use tracing::Subscriber;
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
 use tracing_log::LogTracer;
+use tracing_subscriber::fmt::MakeWriter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::{EnvFilter, Registry};
-use tracing_subscriber::fmt::MakeWriter;
 
 /// Compose multiple layers into a `tracing`'s subscriber.
 ///
@@ -17,15 +17,14 @@ use tracing_subscriber::fmt::MakeWriter;
 /// `Send` and `Sync` to make it possible to pass it to `init_subscriber`
 /// later on.
 pub fn get_subscriber(
-    name: String, 
+    name: String,
     env_filter: String,
-    sink: impl MakeWriter + Send + Sync + 'static
+    sink: impl MakeWriter + Send + Sync + 'static,
 ) -> impl Subscriber + Send + Sync {
     let env_filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(env_filter));
     let formatting_layer = BunyanFormattingLayer::new(
-        name,
-        // Output the formatted spans to stdout
+        name, // Output the formatted spans to stdout
         sink,
     );
 
