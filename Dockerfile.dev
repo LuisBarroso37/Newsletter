@@ -1,15 +1,30 @@
+### Planner stage
+FROM lukemathwalker/cargo-chef as planner
+
+WORKDIR /app
+COPY . .
+
+# Compute a lock-like file for the project
+RUN cargo chef prepare  --recipe-path recipe.json
+
+### Cacher stage
+FROM lukemathwalker/cargo-chef as cacher
+
+WORKDIR /app
+COPY --from=planner /app/recipe.json recipe.json
+
+# Build project dependencies, not the application
+RUN cargo chef cook --release --recipe-path recipe.json
+
 ### Builder stage
 FROM rust:1.53 AS builder
 
 # Working directory in Docker container
 WORKDIR /app
 
-RUN cargo install --locked --branch master \
-    --git https://github.com/eeff/cargo-build-deps
-
-# Build the dependencies
-COPY Cargo.toml Cargo.lock ./
-RUN cargo build-deps --release
+# Copy over the cached dependencies
+COPY --from=cacher /app/target target
+COPY --from=cacher /usr/local/cargo /usr/local/cargo
 
 # Copy all files from the working environment to the Docker image 
 COPY . .
