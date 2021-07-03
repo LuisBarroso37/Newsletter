@@ -1,16 +1,18 @@
 ### Planner stage
-FROM lukemathwalker/cargo-chef as planner
+FROM rust:1.53 as planner
 
 WORKDIR /app
+RUN cargo install cargo-chef 
 COPY . .
 
 # Compute a lock-like file for the project
 RUN cargo chef prepare  --recipe-path recipe.json
 
 ### Cacher stage
-FROM lukemathwalker/cargo-chef as cacher
+FROM rust:1.53 as cacher
 
 WORKDIR /app
+RUN cargo install cargo-chef
 COPY --from=planner /app/recipe.json recipe.json
 
 # Build project dependencies, not the application
