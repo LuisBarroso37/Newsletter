@@ -7,7 +7,7 @@ use tracing_actix_web::TracingLogger;
 
 use crate::configuration::{DatabaseSettings, Settings};
 use crate::email_client::EmailClient;
-use crate::routes::{health_check, subscribe};
+use crate::routes::{confirm, health_check, subscribe};
 
 pub struct Application {
     port: u16,
@@ -42,7 +42,12 @@ impl Application {
         let port = listener.local_addr().unwrap().port();
 
         // Run server
-        let server = run(listener, connection_pool, email_client)?;
+        let server = run(
+            listener,
+            connection_pool,
+            email_client,
+            configuration.application.base_url,
+        )?;
 
         Ok(Self { port, server })
     }
@@ -64,11 +69,19 @@ pub async fn get_connection_pool(configuration: &DatabaseSettings) -> Result<PgP
         .await
 }
 
+// We need to define a wrapper type in order to retrieve the URL
+// in the `subscribe` handler
+// Retrieval from the context, in actix-web, is type-based: using
+// a raw `String` would expose us to conflicts
+#[derive(Debug)]
+pub struct ApplicationBaseUrl(pub String);
+
 /// Runs the server
 pub fn run(
     listener: TcpListener,
     connection_pool: PgPool,
     email_client: EmailClient,
+    base_url: String,
 ) -> Result<Server, std::io::Error> {
     // Wrap the database connection pool and Email http client using web::Data which boils down
     // to an Arc smart pointer
@@ -82,10 +95,12 @@ pub fn run(
             .wrap(TracingLogger::default())
             .route("/health_check", web::get().to(health_check))
             .route("/subscriptions", web::post().to(subscribe))
+            .route("/subscriptions/confirm", web::get().to(confirm))
             // `app.data` does not perform an additional layer of wrapping like `data` does
             // `data would add another Arc smart pointer on top of the existing one`
             .app_data(connection_pool.clone()) // Register a pointer copy of the connection pool as part of the application state
             .app_data(email_client.clone())
+            .data(ApplicationBaseUrl(base_url.clone()))
     })
     .listen(listener)?
     .run();
