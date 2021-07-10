@@ -87,6 +87,7 @@ pub fn run(
     // to an Arc smart pointer
     let connection_pool = web::Data::new(connection_pool);
     let email_client = web::Data::new(email_client);
+    let base_url = web::Data::new(ApplicationBaseUrl(base_url));
 
     // Capture 'connection_pool' from the surrounding environment by using the
     // `move` keyword
@@ -100,7 +101,7 @@ pub fn run(
             // `data would add another Arc smart pointer on top of the existing one`
             .app_data(connection_pool.clone()) // Register a pointer copy of the connection pool as part of the application state
             .app_data(email_client.clone())
-            .data(ApplicationBaseUrl(base_url.clone()))
+            .app_data(base_url.clone())
     })
     .listen(listener)?
     .run();
