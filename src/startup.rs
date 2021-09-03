@@ -7,7 +7,7 @@ use tracing_actix_web::TracingLogger;
 
 use crate::configuration::{DatabaseSettings, Settings};
 use crate::email_client::EmailClient;
-use crate::routes::{confirm, health_check, subscribe};
+use crate::routes::{confirm, health_check, publish_newsletter, subscribe};
 
 pub struct Application {
     port: u16,
@@ -27,10 +27,12 @@ impl Application {
             .email_client
             .sender()
             .expect("Invalid sender email address");
+        let timeout = configuration.email_client.timeout();
         let email_client = EmailClient::new(
             configuration.email_client.base_url,
             sender_email,
             configuration.email_client.authorization_token,
+            timeout
         );
 
         // Create listener for port acquired from config file
@@ -97,6 +99,7 @@ pub fn run(
             .route("/health_check", web::get().to(health_check))
             .route("/subscriptions", web::post().to(subscribe))
             .route("/subscriptions/confirm", web::get().to(confirm))
+            .route("/newsletters", web::post().to(publish_newsletter))
             // `app.data` does not perform an additional layer of wrapping like `data` does
             // `data would add another Arc smart pointer on top of the existing one`
             .app_data(connection_pool.clone()) // Register a pointer copy of the connection pool as part of the application state

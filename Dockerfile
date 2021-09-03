@@ -1,27 +1,32 @@
-### Builder stage
-FROM rust:1.53 AS builder
+### Planner stage
+FROM rust:1.54.0 as planner
 
-# Working directory in Docker container
 WORKDIR /app
+RUN cargo install cargo-chef 
+COPY . .
 
-RUN cargo install --locked --branch master \
-    --git https://github.com/eeff/cargo-build-deps
+# Compute a lock-like file for the project
+RUN cargo chef prepare  --recipe-path recipe.json
 
-# Build the dependencies
-COPY Cargo.toml Cargo.lock ./
-RUN cargo build-deps --release
+### Cacher stage
+FROM rust:1.54.0 as builder
+
+WORKDIR /app
+RUN cargo install cargo-chef
+COPY --from=planner /app/recipe.json recipe.json
+
+# Build project dependencies, not the application
+RUN cargo chef cook --release --recipe-path recipe.json
 
 # Copy all files from the working environment to the Docker image 
 COPY . .
 
 # Set environment variable so that sqlx works in offline mode
+# Used for compile time checks
 ENV SQLX_OFFLINE true
 
 # Build the binary
 RUN cargo build --release --bin newsletter
-
-# Strip debug symbols from binary
-RUN strip /app/target/release/newsletter
 
 ### Runtime stage (not required to have any of the rust toolchain to run the binary)
 FROM gcr.io/distroless/cc AS runtime

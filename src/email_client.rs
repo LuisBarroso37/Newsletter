@@ -9,12 +9,14 @@ pub struct EmailClient {
 }
 
 impl EmailClient {
-    pub fn new(base_url: String, sender: SubscriberEmail, authorization_token: String) -> Self {
+    pub fn new(
+        base_url: String,
+        sender: SubscriberEmail,
+        authorization_token: String,
+        timeout: std::time::Duration,
+    ) -> Self {
         // Build HTTP client with a global default timeout
-        let http_client = reqwest::Client::builder()
-            .timeout(std::time::Duration::from_secs(10))
-            .build()
-            .unwrap();
+        let http_client = reqwest::Client::builder().timeout(timeout).build().unwrap();
 
         Self {
             http_client,
@@ -26,7 +28,7 @@ impl EmailClient {
 
     pub async fn send_email(
         &self,
-        recipient: SubscriberEmail,
+        recipient: &SubscriberEmail,
         subject: &str,
         html_content: &str,
         text_content: &str,
@@ -115,7 +117,12 @@ mod tests {
 
     /// Get a test instance of 'EmailClient'
     fn email_client(base_url: String) -> EmailClient {
-        EmailClient::new(base_url, email(), Faker.fake())
+        EmailClient::new(
+            base_url,
+            email(),
+            Faker.fake(),
+            std::time::Duration::from_millis(200),
+        )
     }
 
     #[tokio::test]
@@ -139,7 +146,7 @@ mod tests {
 
         // Send email through email HTTP client
         let _ = email_client
-            .send_email(email(), &subject(), &content(), &content())
+            .send_email(&email(), &subject(), &content(), &content())
             .await;
 
         // Assertions - Mock expectations are checked on drop
@@ -162,7 +169,7 @@ mod tests {
 
         // Send email through email HTTP client
         let outcome = email_client
-            .send_email(email(), &subject(), &content(), &content())
+            .send_email(&email(), &subject(), &content(), &content())
             .await;
 
         // Assertions
@@ -186,7 +193,7 @@ mod tests {
 
         // Send email through email HTTP client
         let outcome = email_client
-            .send_email(email(), &subject(), &content(), &content())
+            .send_email(&email(), &subject(), &content(), &content())
             .await;
 
         // Assertions
@@ -211,7 +218,7 @@ mod tests {
 
         // Send email through email HTTP client
         let outcome = email_client
-            .send_email(email(), &subject(), &content(), &content())
+            .send_email(&email(), &subject(), &content(), &content())
             .await;
 
         // Assertions

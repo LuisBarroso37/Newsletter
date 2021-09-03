@@ -6,7 +6,7 @@ use chrono::Utc;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use sqlx::{PgPool, Postgres, Transaction};
-use std::convert::TryInto;
+use std::convert::{TryFrom, TryInto};
 use uuid::Uuid;
 
 use crate::domain::{NewSubscriber, SubscriberEmail, SubscriberName};
@@ -19,14 +19,14 @@ pub struct FormData {
     pub name: String,
 }
 
-impl TryInto<NewSubscriber> for FormData {
+impl TryFrom<FormData> for NewSubscriber {
     type Error = String;
 
-    fn try_into(self) -> Result<NewSubscriber, Self::Error> {
-        let name = SubscriberName::parse(self.name)?;
-        let email = SubscriberEmail::parse(self.email)?;
+    fn try_from(value: FormData) -> Result<Self, Self::Error> {
+        let name = SubscriberName::parse(value.name)?;
+        let email = SubscriberEmail::parse(value.email)?;
 
-        Ok(NewSubscriber { email, name })
+        Ok(Self { email, name })
     }
 }
 
@@ -57,8 +57,8 @@ impl ResponseError for SubscribeError {
     name = "Adding a new subscriber",
     skip(form, connection_pool),
     fields(
-        email = %form.email,
-        name = %form.name
+        subscriber_email = %form.email,
+        subscriber_name = %form.name
     )
 )]
 /// Route used to subscribe user to our newsletter
@@ -174,7 +174,7 @@ pub async fn send_confirmation_email(
     );
 
     email_client
-        .send_email(new_subscriber.email, "Welcome", &html_body, &text_body)
+        .send_email(&new_subscriber.email, "Welcome", &html_body, &text_body)
         .await
 }
 
