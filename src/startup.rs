@@ -32,7 +32,7 @@ impl Application {
             configuration.email_client.base_url,
             sender_email,
             configuration.email_client.authorization_token,
-            timeout
+            timeout,
         );
 
         // Create listener for port acquired from config file

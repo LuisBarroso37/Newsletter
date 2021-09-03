@@ -3,6 +3,49 @@ use wiremock::{Mock, ResponseTemplate};
 
 use crate::helpers::{spawn_app, ConfirmationLinks, TestApp};
 
+async fn create_unconfirmed_subscriber(app: &TestApp) -> ConfirmationLinks {
+    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
+
+    // Mock Postmark API
+    // Even though we don't need the variable `mock_guard`, we still need to assign to it
+    // otherwise the tests fail - Drop expectations are not performed
+    let _mock_guard = Mock::given(path("/email"))
+        .and(method("POST"))
+        .respond_with(ResponseTemplate::new(200))
+        .named("Create unconfirmed subscriber")
+        .expect(1)
+        .mount_as_scoped(&app.email_server)
+        .await;
+
+    // Create subscriber
+    app.post_subscriptions(body.into())
+        .await
+        .error_for_status()
+        .unwrap();
+
+    // Retrieve the confirmation link from the request received by the mock Postmark server
+    let email_request = &app
+        .email_server
+        .received_requests()
+        .await
+        .unwrap()
+        .pop()
+        .unwrap();
+
+    app.get_confirmation_links(&email_request)
+}
+
+async fn create_confirmed_subscriber(app: &TestApp) {
+    let confirmation_link = create_unconfirmed_subscriber(&app).await;
+
+    // Confirm user
+    reqwest::get(confirmation_link.html)
+        .await
+        .unwrap()
+        .error_for_status()
+        .unwrap();
+}
+
 #[actix_rt::test]
 async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
     // Arrange
@@ -96,45 +139,4 @@ async fn newsletters_returns_400_for_invalid_data() {
             error_message
         );
     }
-}
-
-async fn create_unconfirmed_subscriber(app: &TestApp) -> ConfirmationLinks {
-    let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
-
-    // Mock Postmark API
-    Mock::given(path("/email"))
-        .and(method("POST"))
-        .respond_with(ResponseTemplate::new(200))
-        .named("Create unconfirmed subscriber")
-        .expect(1)
-        .mount_as_scoped(&app.email_server)
-        .await;
-
-    // Create subscriber
-    app.post_subscriptions(body.into())
-        .await
-        .error_for_status()
-        .unwrap();
-
-    // Retrieve the confirmation link from the request received by the mock Postmark server
-    let email_request = &app
-        .email_server
-        .received_requests()
-        .await
-        .unwrap()
-        .pop()
-        .unwrap();
-
-    app.get_confirmation_links(&email_request)
-}
-
-async fn create_confirmed_subscriber(app: &TestApp) {
-    let confirmation_link = create_unconfirmed_subscriber(&app).await;
-
-    // Confirm user
-    reqwest::get(confirmation_link.html)
-        .await
-        .unwrap()
-        .error_for_status()
-        .unwrap();
 }
