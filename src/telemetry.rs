@@ -1,3 +1,4 @@
+use actix_web::rt::task::JoinHandle;
 use tracing::subscriber::set_global_default;
 use tracing::Subscriber;
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
@@ -42,4 +43,21 @@ pub fn init_subscriber(subscriber: impl Subscriber + Send + Sync) {
     LogTracer::init().expect("Failed to set logger");
 
     set_global_default(subscriber).expect("Failed to set subscriber");
+}
+
+/// Used for when we want to execute a function in a separate thread but still want the tracing logs
+/// to work properly.
+pub fn spawn_blocking_with_tracing<F, R>(f: F) -> JoinHandle<R>
+where
+    F: FnOnce() -> R + Send + 'static,
+    R: Send + 'static,
+{
+    let current_span = tracing::Span::current();
+
+    actix_web::rt::task::spawn_blocking(move || {
+        // We need to execute the function in the scope of the current span
+        // because we are executing the function in a different thread.
+        // This causes issues with tracing logs.
+        current_span.in_scope(f)
+    })
 }
