@@ -1,18 +1,19 @@
 use crate::domain::SubscriberEmail;
+use secrecy::{ExposeSecret, Secret};
 
 #[derive(Debug)]
 pub struct EmailClient {
     http_client: reqwest::Client,
     base_url: String,
     sender: SubscriberEmail,
-    authorization_token: String,
+    authorization_token: Secret<String>,
 }
 
 impl EmailClient {
     pub fn new(
         base_url: String,
         sender: SubscriberEmail,
-        authorization_token: String,
+        authorization_token: Secret<String>,
         timeout: std::time::Duration,
     ) -> Self {
         // Build HTTP client with a global default timeout
@@ -48,7 +49,10 @@ impl EmailClient {
         // Build POST request
         self.http_client
             .post(&url)
-            .header("X-Postmark-Server-Token", &self.authorization_token)
+            .header(
+                "X-Postmark-Server-Token",
+                self.authorization_token.expose_secret(),
+            )
             .json(&request_body)
             .send()
             .await?
@@ -76,6 +80,7 @@ mod tests {
     use fake::faker::internet::en::SafeEmail;
     use fake::faker::lorem::en::{Paragraph, Sentence};
     use fake::{Fake, Faker};
+    use secrecy::Secret;
     use wiremock::matchers::{any, header, header_exists, method, path};
     use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
@@ -120,7 +125,7 @@ mod tests {
         EmailClient::new(
             base_url,
             email(),
-            Faker.fake(),
+            Secret::new(Faker.fake()),
             std::time::Duration::from_millis(200),
         )
     }

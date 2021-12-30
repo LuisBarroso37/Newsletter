@@ -17,11 +17,14 @@ use tracing_subscriber::{EnvFilter, Registry};
 /// We need to explicitly call out that the returned subscriber is
 /// `Send` and `Sync` to make it possible to pass it to `init_subscriber`
 /// later on.
-pub fn get_subscriber(
+pub fn get_subscriber<Sink>(
     name: String,
     env_filter: String,
-    sink: impl MakeWriter + Send + Sync + 'static,
-) -> impl Subscriber + Send + Sync {
+    sink: Sink,
+) -> impl Subscriber + Send + Sync
+where
+    Sink: for<'a> MakeWriter<'a> + Send + Sync + 'static,
+{
     let env_filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(env_filter));
     let formatting_layer = BunyanFormattingLayer::new(

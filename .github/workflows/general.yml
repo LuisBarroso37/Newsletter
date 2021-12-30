@@ -26,7 +26,7 @@ jobs:
         ports:
           - 5432:5432
     env:
-      SQLX_VERSION: 0.5.5
+      SQLX_VERSION: 0.5.7
       SQLX_FEATURES: postgres
     steps:
       - name: Checkout repository
@@ -55,6 +55,7 @@ jobs:
         with:
           path: |
             ~/.cargo/bin/sqlx
+            ~/.cargo/bin/cargo-sqlx
           key: ${{ runner.os }}-sqlx-${{ env.SQLX_VERSION }}-${{ env.SQLX_FEATURES }}
 
       - name: Install sqlx-cli
@@ -69,10 +70,16 @@ jobs:
             --features=${{ env.SQLX_FEATURES }}
             --no-default-features
             --locked
+
       - name: Migrate database
         run: |
           sudo apt-get install libpq-dev -y
           SKIP_DOCKER=true ./scripts/init_db.sh
+
+      - name: Check sqlx-data.json is up-to-date
+        run: |
+          cargo sqlx prepare --check -- --bin newsletter
+
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
@@ -106,7 +113,7 @@ jobs:
         ports:
           - 5432:5432
     env:
-      SQLX_VERSION: 0.5.5
+      SQLX_VERSION: 0.5.7
       SQLX_FEATURES: postgres
     steps:
       - name: Checkout repository
@@ -139,10 +146,12 @@ jobs:
             --features=${{ env.SQLX_FEATURES }}
             --no-default-features
             --locked
+
       - name: Migrate database
         run: |
           sudo apt-get install libpq-dev -y
           SKIP_DOCKER=true ./scripts/init_db.sh
+
       - name: Run clippy
         uses: actions-rs/clippy-check@v1
         with:
@@ -162,7 +171,7 @@ jobs:
         ports:
           - 5432:5432
     env:
-      SQLX_VERSION: 0.5.5
+      SQLX_VERSION: 0.5.7
       SQLX_FEATURES: postgres
     steps:
       - name: Checkout repository
@@ -194,10 +203,12 @@ jobs:
             --features=${{ env.SQLX_FEATURES }}
             --no-default-features
             --locked
+
       - name: Migrate database
         run: |
           sudo apt-get install libpq-dev -y
           SKIP_DOCKER=true ./scripts/init_db.sh
+
       - name: Run cargo-tarpaulin
         uses: actions-rs/tarpaulin@v0.1
         with:

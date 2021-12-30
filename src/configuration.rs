@@ -1,5 +1,7 @@
+use secrecy::{ExposeSecret, Secret};
 use serde_aux::field_attributes::deserialize_number_from_string;
 use sqlx::postgres::{PgConnectOptions, PgSslMode};
+use sqlx::ConnectOptions;
 use std::convert::{TryFrom, TryInto};
 
 use crate::domain::SubscriberEmail;
@@ -15,7 +17,8 @@ pub struct Settings {
 pub struct EmailClientSettings {
     pub base_url: String,
     pub sender_email: String,
-    pub authorization_token: String,
+    pub authorization_token: Secret<String>,
+    #[serde(deserialize_with = "deserialize_number_from_string")]
     pub timeout_milliseconds: u64,
 }
 
@@ -40,7 +43,7 @@ pub struct ApplicationSettings {
 #[derive(serde::Deserialize, Clone)]
 pub struct DatabaseSettings {
     pub username: String,
-    pub password: String,
+    pub password: Secret<String>,
     #[serde(deserialize_with = "deserialize_number_from_string")]
     pub port: u16,
     pub host: String,
@@ -61,13 +64,16 @@ impl DatabaseSettings {
         PgConnectOptions::new()
             .host(&self.host)
             .username(&self.username)
-            .password(&self.password)
+            .password(self.password.expose_secret())
             .port(self.port)
             .ssl_mode(ssl_mode)
     }
 
     pub fn with_db(&self) -> PgConnectOptions {
-        self.without_db().database(&self.database_name)
+        let mut options = self.without_db().database(&self.database_name);
+        options.log_statements(log::LevelFilter::Trace);
+
+        options
     }
 }
 

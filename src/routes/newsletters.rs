@@ -1,7 +1,9 @@
-use actix_web::http::{header, HeaderMap, HeaderValue, StatusCode};
+use actix_web::http::header::{HeaderMap, HeaderValue};
+use actix_web::http::StatusCode;
 use actix_web::{web, HttpResponse, ResponseError};
 use anyhow::Context;
 use argon2::{Argon2, PasswordHash, PasswordVerifier};
+use secrecy::{ExposeSecret, Secret};
 use sqlx::PgPool;
 
 use crate::telemetry::spawn_blocking_with_tracing;
@@ -45,7 +47,7 @@ impl ResponseError for PublishNewsletterError {
                 // Add 'WWW-Authenticta header to response
                 response
                     .headers_mut()
-                    .insert(header::WWW_AUTHENTICATE, header_value);
+                    .insert(actix_web::http::header::WWW_AUTHENTICATE, header_value);
 
                 response
             }
@@ -122,7 +124,7 @@ pub async fn publish_newsletter(
 // User credentials used for authentication
 struct Credentials {
     username: String,
-    password: String,
+    password: Secret<String>,
 }
 
 /// Extract user credentials from 'Authorization' header
@@ -160,7 +162,10 @@ fn basic_authentication(headers: &HeaderMap) -> Result<Credentials, anyhow::Erro
         .ok_or_else(|| anyhow::anyhow!("A password must be provided in 'Basic' auth."))?
         .to_string();
 
-    Ok(Credentials { username, password })
+    Ok(Credentials {
+        username,
+        password: Secret::new(password),
+    })
 }
 
 #[tracing::instrument(name = "Validate user credentials", skip(credentials, connection_pool))]
@@ -171,10 +176,12 @@ async fn validate_credentials(
     // Set fallback user id and password hash in case no user is found with given username
     // We do this to return an error later in order to avoid timing attacks
     let mut user_id = None;
-    let mut expected_password_hash = "$argon2id$v=19$m=15000,t=2,p=1$\
+    let mut expected_password_hash = Secret::new(
+        "$argon2id$v=19$m=15000,t=2,p=1$\
         gZiV/M1gPc22ElAH/Jh1Hw$\
         CWOrkoo7oJBQ/iyh7uJ0LO2aLEfrHwTWllSAxT0zRno"
-        .to_string();
+            .to_string(),
+    );
 
     // Update user's id and password hash if user exists with given username
     if let Some((stored_user_id, stored_password_hash)) =
@@ -185,12 +192,6 @@ async fn validate_credentials(
         user_id = Some(stored_user_id);
         expected_password_hash = stored_password_hash;
     }
-
-    // Parse password hash
-    let expected_password_hash = PasswordHash::new(&expected_password_hash)
-        .context("Failed to parse hash in PHC string format.")
-        .map_err(PublishNewsletterError::UnexpectedError)?
-        .to_string();
 
     // Verify if passwords match
     spawn_blocking_with_tracing(move || {
@@ -211,7 +212,7 @@ async fn validate_credentials(
 async fn get_stored_credentials(
     username: &str,
     connection_pool: &PgPool,
-) -> Result<Option<(uuid::Uuid, String)>, anyhow::Error> {
+) -> Result<Option<(uuid::Uuid, Secret<String>)>, anyhow::Error> {
     let row = sqlx::query!(
         r#"SELECT id, password FROM users WHERE username = $1"#,
         username
@@ -219,7 +220,7 @@ async fn get_stored_credentials(
     .fetch_optional(connection_pool)
     .await
     .context("Failed to perform a query to retrieve stored credentials.")?
-    .map(|row| (row.id, row.password));
+    .map(|row| (row.id, Secret::new(row.password)));
 
     Ok(row)
 }
@@ -229,15 +230,18 @@ async fn get_stored_credentials(
     skip(expected_password_hash, password_candidate)
 )]
 fn verify_password_hash(
-    expected_password_hash: String,
-    password_candidate: String,
+    expected_password_hash: Secret<String>,
+    password_candidate: Secret<String>,
 ) -> Result<(), PublishNewsletterError> {
-    let expected_password_hash = PasswordHash::new(&expected_password_hash)
+    let expected_password_hash = PasswordHash::new(expected_password_hash.expose_secret())
         .context("Failed to parse hash in PHC string format.")
         .map_err(PublishNewsletterError::UnexpectedError)?;
 
     Argon2::default()
-        .verify_password(password_candidate.as_bytes(), &expected_password_hash)
+        .verify_password(
+            password_candidate.expose_secret().as_bytes(),
+            &expected_password_hash,
+        )
         .context("Invalid password.")
         .map_err(PublishNewsletterError::AuthError)
 }
