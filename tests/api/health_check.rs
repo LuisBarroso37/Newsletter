@@ -18,4 +18,7 @@ async fn health_check_works() {
     // Check that we get back a 200 response with no body
     assert!(response.status().is_success());
     assert_eq!(Some(0), response.content_length());
+
+    // Teardown test database
+    app.cleanup().await;
 }

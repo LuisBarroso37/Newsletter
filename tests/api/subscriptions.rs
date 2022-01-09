@@ -5,12 +5,11 @@ use wiremock::{Mock, ResponseTemplate};
 
 #[tokio::test]
 async fn subscribe_returns_a_200_for_valid_form_data() {
-    // Start server
+    // Arrange
     let app = spawn_app().await;
-
-    // Request body
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
+    // Act
     // Mock Postmark API
     Mock::given(path("/email"))
         .and(method("POST"))
@@ -20,17 +19,20 @@ async fn subscribe_returns_a_200_for_valid_form_data() {
 
     let response = app.post_subscriptions(body.into()).await;
 
+    // Assert
     assert_eq!(200, response.status().as_u16());
+
+    // Teardown test database
+    app.cleanup().await;
 }
 
 #[tokio::test]
 async fn subscribe_persists_the_new_subscriber() {
-    // Start server
+    // Arrange
     let app = spawn_app().await;
-
-    // Request body
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
+    // Act
     app.post_subscriptions(body.into()).await;
 
     let saved_subscriber = sqlx::query!("SELECT email, name, status FROM subscriptions")
@@ -38,25 +40,30 @@ async fn subscribe_persists_the_new_subscriber() {
         .await
         .expect("Failed to fetch saved subscriber");
 
+    // Assert
     assert_eq!(saved_subscriber.email, "ursula_le_guin@gmail.com");
     assert_eq!(saved_subscriber.name, "le guin");
     assert_eq!(saved_subscriber.status, "pending_confirmation");
+
+    // Teardown test database
+    app.cleanup().await;
 }
 
 #[tokio::test]
 async fn subscribe_returns_a_400_when_fields_are_present_but_invalid() {
-    // Setup
+    // Arrange
     let app = spawn_app().await;
-
     let test_cases = vec![
         ("name=&email=ursula_le_guin%40gmail.com", "empty name"),
         ("name=Ursula&email=", "empty email"),
         ("name=Ursula&email=definitely-not-an-email", "invalid email"),
     ];
 
+    // Act
     for (body, description) in test_cases {
         let response = app.post_subscriptions(body.into()).await;
 
+        // Assert
         assert_eq!(
             400,
             response.status().as_u16(),
@@ -64,22 +71,26 @@ async fn subscribe_returns_a_400_when_fields_are_present_but_invalid() {
             description
         );
     }
+
+    // Teardown test database
+    app.cleanup().await;
 }
 
 #[tokio::test]
 async fn subscribe_returns_a_400_when_data_is_missing() {
-    // Setup
+    // Arrange
     let app = spawn_app().await;
-
     let test_cases = vec![
         ("name=le%20guin", "missing the email"),
         ("email=ursula_le_guin%40gmail.com", "missing the name"),
         ("", "missing both the name and email"),
     ];
 
+    // Act
     for (invalid_body, error_message) in test_cases {
         let response = app.post_subscriptions(invalid_body.into()).await;
 
+        // Assert
         assert_eq!(
             400,
             response.status().as_u16(),
@@ -88,10 +99,14 @@ async fn subscribe_returns_a_400_when_data_is_missing() {
             error_message
         );
     }
+
+    // Teardown test database
+    app.cleanup().await;
 }
 
 #[tokio::test]
 async fn subscribe_sends_a_confirmation_email_for_valid_data() {
+    // Arrange
     let app = spawn_app().await;
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
@@ -106,14 +121,14 @@ async fn subscribe_sends_a_confirmation_email_for_valid_data() {
     app.post_subscriptions(body.into()).await;
 
     // Assertions - Mock asserts on drop
+    // Teardown test database
+    app.cleanup().await;
 }
 
 #[tokio::test]
 async fn subscribe_sends_a_confirmation_email_with_a_link() {
-    // Start server
+    // Arrange
     let app = spawn_app().await;
-
-    // Request body
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
     Mock::given(path("/email"))
@@ -123,7 +138,7 @@ async fn subscribe_sends_a_confirmation_email_with_a_link() {
         .mount(&app.email_server)
         .await;
 
-    // Send request
+    // Act
     app.post_subscriptions(body.into()).await;
 
     // Get the first intercepted request
@@ -132,15 +147,21 @@ async fn subscribe_sends_a_confirmation_email_with_a_link() {
     // Extract confirmation links from email request
     let confirmation_links = app.get_confirmation_links(email_request);
 
+    // Assert
     // The two links should be identical
     assert_eq!(confirmation_links.html, confirmation_links.plain_text);
+
+    // Teardown test database
+    app.cleanup().await;
 }
 
 #[tokio::test]
 async fn subscribe_fails_if_there_is_a_fatal_database_error() {
+    // Arrange
     let app = spawn_app().await;
     let body = "name=le%20guin&email=ursula_le_guin%40gmail.com";
 
+    // Act
     // Sabotage the database
     sqlx::query!("ALTER TABLE subscriptions DROP COLUMN email",)
         .execute(&app.connection_pool)
@@ -151,4 +172,7 @@ async fn subscribe_fails_if_there_is_a_fatal_database_error() {
 
     // Assert
     assert_eq!(response.status().as_u16(), 500);
+
+    // Teardown test database
+    app.cleanup().await;
 }

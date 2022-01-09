@@ -1,7 +1,8 @@
 ### Planner stage
-FROM rust:1.54.0 as planner
+FROM rust:1.57.0 as planner
 
 WORKDIR /app
+RUN apt update && apt install lld clang -y
 RUN cargo install cargo-chef 
 COPY . .
 
@@ -9,7 +10,7 @@ COPY . .
 RUN cargo chef prepare  --recipe-path recipe.json
 
 ### Cacher stage
-FROM rust:1.54.0 as builder
+FROM rust:1.57.0 as builder
 
 WORKDIR /app
 RUN cargo install cargo-chef

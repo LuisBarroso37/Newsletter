@@ -34,12 +34,14 @@ pub struct TestApp {
     pub email_server: MockServer,
     pub port: u16,
     pub test_user: TestUser,
+    pub db_name: String,
+    pub api_client: reqwest::Client,
 }
 
 impl TestApp {
-    /// Make request to /subscriptions
+    /// Make POST request to /subscriptions
     pub async fn post_subscriptions(&self, body: String) -> reqwest::Response {
-        reqwest::Client::new()
+        self.api_client
             .post(&format!("{}/subscriptions", &self.address))
             .header("Content-Type", "application/x-www-form-urlencoded")
             .body(body)
@@ -48,12 +50,74 @@ impl TestApp {
             .expect("Failed to execute request")
     }
 
-    /// Make request to /newsletters
+    /// Make POST request to /newsletters
     pub async fn post_newsletters(&self, body: serde_json::Value) -> reqwest::Response {
-        reqwest::Client::new()
+        self.api_client
             .post(&format!("{}/newsletters", &self.address))
             .basic_auth(&self.test_user.username, Some(&self.test_user.password)) // Random credentials
             .json(&body)
+            .send()
+            .await
+            .expect("Failed to execute request")
+    }
+
+    /// Make POST request to /login
+    pub async fn post_login<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
+        self.api_client
+            .post(&format!("{}/login", &self.address))
+            .form(body)
+            .send()
+            .await
+            .expect("Failed to execute request")
+    }
+
+    /// Make GET request to /login
+    pub async fn get_login(&self) -> reqwest::Response {
+        self.api_client
+            .get(&format!("{}/login", &self.address))
+            .send()
+            .await
+            .expect("Failed to execute request")
+    }
+
+    /// Make GET request to /admin/dashboard
+    pub async fn get_admin_dashboard(&self) -> reqwest::Response {
+        self.api_client
+            .get(&format!("{}/admin/dashboard", &self.address))
+            .send()
+            .await
+            .expect("Failed to execute request")
+    }
+
+    /// Make GET request to /admin/password
+    pub async fn get_change_password(&self) -> reqwest::Response {
+        self.api_client
+            .get(&format!("{}/admin/password", &self.address))
+            .send()
+            .await
+            .expect("Failed to execute request")
+    }
+
+    /// Make POST request to /admin/password
+    pub async fn post_change_password<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
+        self.api_client
+            .post(&format!("{}/admin/password", &self.address))
+            .form(body)
+            .send()
+            .await
+            .expect("Failed to execute request")
+    }
+
+    /// Make POST request to /admin/logout
+    pub async fn post_logout(&self) -> reqwest::Response {
+        self.api_client
+            .post(&format!("{}/admin/logout", &self.address))
             .send()
             .await
             .expect("Failed to execute request")
@@ -89,6 +153,32 @@ impl TestApp {
 
         ConfirmationLinks { html, plain_text }
     }
+
+    /// Teardown database created for test
+    pub async fn cleanup(&self) {
+        let mut conn =
+            PgConnection::connect("postgres://postgres:password@localhost:5432/newsletter")
+                .await
+                .expect("Failed to connect to Postgres");
+
+        // In Postgres, it is necessary to disconnect users before deleting the database
+        conn.execute(
+            format!(
+                r#"SELECT pg_terminate_backend(pid) 
+                FROM pg_stat_activity WHERE datname = '{}'
+                AND pid <> pg_backend_pid();"#,
+                &self.db_name
+            )
+            .as_str(),
+        )
+        .await
+        .expect("Failed to disconnect users from Postgres");
+
+        // Delete the database
+        conn.execute(format!(r#"DROP DATABASE "{}";"#, &self.db_name).as_str())
+            .await
+            .unwrap_or_else(|_| panic!("Failed to delete database {}", &self.db_name));
+    }
 }
 
 // Launch our application in the background
@@ -122,6 +212,9 @@ pub async fn spawn_app() -> TestApp {
     // Create and migrate the database
     configure_database(&configuration.database).await;
 
+    // Get test database name
+    let db_name = &configuration.database.database_name;
+
     // Build server
     let application = Application::build(configuration.clone())
         .await
@@ -129,6 +222,13 @@ pub async fn spawn_app() -> TestApp {
 
     // Get the port before spawning the application
     let application_port = application.port();
+
+    // Create HTTP client to make requests to our API
+    let client = reqwest::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .cookie_store(true)
+        .build()
+        .unwrap();
 
     // Launch the server as a background task
     let _ = tokio::spawn(application.run_until_stopped());
@@ -140,6 +240,8 @@ pub async fn spawn_app() -> TestApp {
         connection_pool: get_connection_pool(&configuration.database),
         email_server,
         test_user: TestUser::generate(),
+        db_name: db_name.to_string(),
+        api_client: client,
     };
 
     // Create a user for authentication in POST /newsletters

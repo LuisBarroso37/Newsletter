@@ -76,6 +76,9 @@ async fn newsletters_are_not_delivered_to_unconfirmed_subscribers() {
     // Assert
     // Mock verifies on Drop that we haven't sent the newsletter email
     assert_eq!(response.status().as_u16(), 200);
+
+    // Teardown test database
+    app.cleanup().await;
 }
 
 #[tokio::test]
@@ -106,6 +109,9 @@ async fn newsletters_are_delivered_to_confirmed_subscribers() {
     // Assert
     // Mock verifies on Drop that we have sent the newsletter email
     assert_eq!(response.status().as_u16(), 200);
+
+    // Teardown test database
+    app.cleanup().await;
 }
 
 #[tokio::test]
@@ -124,7 +130,7 @@ async fn newsletters_returns_400_for_invalid_data() {
         ),
         (
             serde_json::json!({ "title": "Newsletter!" }),
-            "missing title",
+            "missing content",
         ),
     ];
 
@@ -140,6 +146,9 @@ async fn newsletters_returns_400_for_invalid_data() {
             error_message
         );
     }
+
+    // Teardown test database
+    app.cleanup().await;
 }
 
 #[tokio::test]
@@ -167,6 +176,9 @@ async fn requests_missing_authorization_are_rejected() {
         response.headers()["WWW-Authenticate"],
         r#"Basic realm="publish""#
     );
+
+    // Teardown test database
+    app.cleanup().await;
 }
 
 #[tokio::test]
@@ -199,6 +211,9 @@ async fn non_existing_user_is_rejected() {
         response.headers()["WWW-Authenticate"],
         r#"Basic realm="publish""#
     );
+
+    // Teardown test database
+    app.cleanup().await;
 }
 
 #[tokio::test]
@@ -233,4 +248,7 @@ async fn invalid_password_is_rejected() {
         response.headers()["WWW-Authenticate"],
         r#"Basic realm="publish""#
     );
+
+    // Teardown test database
+    app.cleanup().await;
 }

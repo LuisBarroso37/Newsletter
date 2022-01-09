@@ -2,8 +2,11 @@ use newsletter::configuration::get_configuration;
 use newsletter::startup::Application;
 use newsletter::telemetry::{get_subscriber, init_subscriber};
 
+// cargo watch -x check -x test -x "run | bunyan"
+// TEST_LOG=true cargo test health_check_works | bunyan
+
 #[tokio::main]
-async fn main() -> std::io::Result<()> {
+async fn main() -> anyhow::Result<()> {
     // Setup logger
     let subscriber = get_subscriber("newsletter".into(), "info".into(), std::io::stdout);
     init_subscriber(subscriber);
