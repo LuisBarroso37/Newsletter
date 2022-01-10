@@ -50,12 +50,23 @@ impl TestApp {
             .expect("Failed to execute request")
     }
 
-    /// Make POST request to /newsletters
-    pub async fn post_newsletters(&self, body: serde_json::Value) -> reqwest::Response {
+    /// Make GET request to /admin/newsletters
+    pub async fn get_publish_newsletter(&self) -> reqwest::Response {
         self.api_client
-            .post(&format!("{}/newsletters", &self.address))
-            .basic_auth(&self.test_user.username, Some(&self.test_user.password)) // Random credentials
-            .json(&body)
+            .get(&format!("{}/admin/newsletters", &self.address)) // Random credentials
+            .send()
+            .await
+            .expect("Failed to execute request")
+    }
+
+    /// Make POST request to /admin/newsletters
+    pub async fn post_publish_newsletter<Body>(&self, body: &Body) -> reqwest::Response
+    where
+        Body: serde::Serialize,
+    {
+        self.api_client
+            .post(&format!("{}/admin/newsletters", &self.address)) // Random credentials
+            .form(body)
             .send()
             .await
             .expect("Failed to execute request")

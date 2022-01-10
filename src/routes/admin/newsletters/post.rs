@@ -8,7 +8,7 @@ use crate::email_client::EmailClient;
 use crate::session_state::TypedSession;
 use crate::utils::{internal_server_error, see_other_response};
 
-#[derive(serde::Deserialize)]
+#[derive(serde::Deserialize, Debug)]
 pub struct FormData {
     title: String,
     html: String,
@@ -21,7 +21,7 @@ pub struct FormData {
     fields(user_id=tracing::field::Empty)
 )]
 pub async fn publish_newsletter(
-    form: web::Json<FormData>,
+    form: web::Form<FormData>,
     connection_pool: web::Data<PgPool>,
     email_client: web::Data<EmailClient>,
     session: TypedSession,
