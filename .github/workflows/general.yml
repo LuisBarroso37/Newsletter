@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:13.5
+        image: postgres:14.2
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password
@@ -30,7 +30,7 @@ jobs:
         ports:
           - 6379:6379
     env:
-      SQLX_VERSION: 0.5.9
+      SQLX_VERSION: 0.5.11
       SQLX_FEATURES: postgres
     steps:
       - name: Checkout repository
@@ -109,7 +109,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:13.5
+        image: postgres:14.2
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password
@@ -117,7 +117,7 @@ jobs:
         ports:
           - 5432:5432
     env:
-      SQLX_VERSION: 0.5.9
+      SQLX_VERSION: 0.5.11
       SQLX_FEATURES: postgres
     steps:
       - name: Checkout repository
@@ -167,7 +167,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       postgres:
-        image: postgres:13.5
+        image: postgres:14.2
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: password
@@ -179,7 +179,7 @@ jobs:
         ports:
           - 6379:6379
     env:
-      SQLX_VERSION: 0.5.9
+      SQLX_VERSION: 0.5.11
       SQLX_FEATURES: postgres
     steps:
       - name: Checkout repository

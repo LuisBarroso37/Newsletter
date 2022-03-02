@@ -18,5 +18,8 @@ async fn main() -> anyhow::Result<()> {
     let application = Application::build(configuration).await?;
     application.run_until_stopped().await?;
 
+    // Ensure all spans have been shipped to Jaeger
+    opentelemetry::global::shutdown_tracer_provider();
+
     Ok(())
 }

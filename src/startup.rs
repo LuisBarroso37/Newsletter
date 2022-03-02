@@ -98,6 +98,9 @@ async fn run(
     hmac_secret: Secret<String>,
     redis_uri: Secret<String>,
 ) -> Result<Server, anyhow::Error> {
+    // Run migrations
+    sqlx::migrate!().run(&connection_pool).await?;
+
     // Wrap the database connection pool and Email http client using web::Data which boils down
     // to an Arc smart pointer
     let connection_pool = web::Data::new(connection_pool);

@@ -1,4 +1,6 @@
 use actix_web::rt::task::JoinHandle;
+use opentelemetry::runtime::TokioCurrentThread;
+use opentelemetry::sdk::propagation::TraceContextPropagator;
 use tracing::subscriber::set_global_default;
 use tracing::Subscriber;
 use tracing_bunyan_formatter::{BunyanFormattingLayer, JsonStorageLayer};
@@ -25,17 +27,34 @@ pub fn get_subscriber<Sink>(
 where
     Sink: for<'a> MakeWriter<'a> + Send + Sync + 'static,
 {
+    let app_name = "newsletter";
+
+    // Start a new Jaeger trace pipeline.
+    // Spans are exported in batch - recommended setup for a production application.
+    opentelemetry::global::set_text_map_propagator(TraceContextPropagator::new());
+    let tracer = opentelemetry_jaeger::new_pipeline()
+        .with_service_name(app_name)
+        .install_batch(TokioCurrentThread)
+        .expect("Failed to install Open Telemetry tracer");
+
+    // Filter based on level - trace, debug, info, warn, error
     let env_filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(env_filter));
+
+    // Create a `tracing` layer to emit spans as structured logs to stdout
     let formatting_layer = BunyanFormattingLayer::new(
         name, // Output the formatted spans to stdout
         sink,
     );
 
+    // Create a `tracing` layer using the Jaeger tracer
+    let opentelemetry_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+
     Registry::default()
         .with(env_filter)
         .with(JsonStorageLayer)
         .with(formatting_layer)
+        .with(opentelemetry_layer)
 }
 
 /// Register a subscriber as global default to process span data.
