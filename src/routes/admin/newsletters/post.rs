@@ -3,9 +3,9 @@ use actix_web_flash_messages::FlashMessage;
 use anyhow::Context;
 use sqlx::PgPool;
 
+use crate::authentication::UserId;
 use crate::domain::SubscriberEmail;
 use crate::email_client::EmailClient;
-use crate::session_state::TypedSession;
 use crate::utils::{internal_server_error, see_other_response};
 
 #[derive(serde::Deserialize, Debug)]
@@ -17,25 +17,15 @@ pub struct FormData {
 
 #[tracing::instrument(
     name = "Publish newsletter to confirmed users",
-    skip(form, connection_pool, email_client, session),
-    fields(user_id=tracing::field::Empty)
+    skip(form, connection_pool, email_client, user_id),
+    fields(user_id=%*user_id)
 )]
 pub async fn publish_newsletter(
     form: web::Form<FormData>,
     connection_pool: web::Data<PgPool>,
     email_client: web::Data<EmailClient>,
-    session: TypedSession,
+    user_id: web::ReqData<UserId>,
 ) -> Result<HttpResponse, actix_web::Error> {
-    // Check if user is authenticated by trying to get user id from session
-    let user_id = session.get_user_id().map_err(internal_server_error)?;
-
-    if user_id.is_none() {
-        return Ok(see_other_response("/login"));
-    }
-
-    // Record user id in tracing span
-    tracing::Span::current().record("user_id", &tracing::field::display(&user_id.unwrap()));
-
     // Retrieve list of confirmed subscribers
     let confirmed_subscribers = get_confirmed_subscribers(&connection_pool)
         .await

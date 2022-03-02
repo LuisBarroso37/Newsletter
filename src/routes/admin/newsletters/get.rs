@@ -2,22 +2,9 @@ use actix_web::{http::header::ContentType, HttpResponse};
 use actix_web_flash_messages::IncomingFlashMessages;
 use std::fmt::Write;
 
-use crate::session_state::TypedSession;
-use crate::utils::{internal_server_error, see_other_response};
-
 pub async fn publish_newsletter_form(
-    session: TypedSession,
     flash_messages: IncomingFlashMessages,
 ) -> Result<HttpResponse, actix_web::Error> {
-    // Check if user is authenticated
-    if session
-        .get_user_id()
-        .map_err(internal_server_error)?
-        .is_none()
-    {
-        return Ok(see_other_response("/login"));
-    }
-
     // Retrieve all flash messages
     let mut msg_html = String::new();
 

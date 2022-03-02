@@ -57,7 +57,7 @@ where
 {
     let current_span = tracing::Span::current();
 
-    actix_web::rt::task::spawn_blocking(move || {
+    tokio::task::spawn_blocking(move || {
         // We need to execute the function in the scope of the current span
         // because we are executing the function in a different thread.
         // This causes issues with tracing logs.
